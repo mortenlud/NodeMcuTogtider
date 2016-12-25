@@ -1,0 +1,5 @@
+.piolibdeps/*
+.pioenvs/do-not-modify-files-here.url
+.pioenvs/structure.hash
+.gcc-flags.json
+.clang_complete
