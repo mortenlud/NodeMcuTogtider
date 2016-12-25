@@ -7,9 +7,13 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
+#include <PubSubClient.h>
 
 const char* ssid     = "your_ssid";
-const char* password = "your_wifi_password";
+const char* password = "your_password";
+
+const byte mqtt_broker[] = {192, 168, 1, 146};
+const int mqtt_port = 1883;
 
 const char* host = "reisapi.ruter.no";
 const int httpPort = 80;
@@ -18,10 +22,13 @@ String url = "/StopVisit/GetDepartures/2190400";
 // stoppested Frydendal: 2200451
 // For full oversikt: http://reisapi.ruter.no/Place/GetStopsRuter
 
-Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(5, 8, D9,
+Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(8, 8, RX,
                             NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
                             NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
                             NEO_GRB            + NEO_KHZ800);
+
+WiFiClient client;
+PubSubClient mqttClient(client);
 
 class TrainArrival
 {
@@ -50,12 +57,13 @@ void setup() {
 
   matrix.begin();
   matrix.setTextWrap(false);
-  matrix.setBrightness(40);
+  matrix.setBrightness(20);
   matrix.setTextColor(matrix.Color(0, 255, 0));
+
+  mqttClient.setServer(mqtt_broker, mqtt_port);
 }
 
 void loop() {
-  WiFiClient client;
 
   TrainArrival trainArrival = findTrainArrival(client);
 
@@ -64,11 +72,26 @@ void loop() {
 
   int timeToArrivalMin = timeToArrival(arivalTimeInSec,timeInSec);
 
-  if(trainArrival.trainDelay[2] == '0'){
+  if(timeToArrivalMin > 3){
     matrix.setTextColor(matrix.Color(0, 255, 0));
   }else{
     matrix.setTextColor(matrix.Color(255, 0, 0));
   }
+
+  if (!mqttClient.connected()) {
+    Serial.println("Connecting mqtt");
+    reconnect();
+  }
+
+  String data = "{\"name\": \"Neste tog\", \"value\": \"";
+  data = data + String(timeToArrivalMin) + " " + trainArrival.train;
+  data = data + "\"}";
+
+  char payload[200];
+  String(data).toCharArray(payload,200);
+
+  mqttClient.publish("pepperkakebyen", payload);
+
 
   if(timeToArrivalMin < 10 && timeToArrivalMin >= 0){
     printStaticText(String(timeToArrivalMin));
@@ -79,6 +102,23 @@ void loop() {
   }
 
   printRollingText(trainArrival.train);
+}
+
+void reconnect() {
+  while (!mqttClient.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    String clientId = "ESP8266Client-";
+    clientId += String(random(0xffff), HEX);
+
+    if (mqttClient.connect(clientId.c_str())) {
+      Serial.println("connected");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" retrying in 5 seconds");
+      delay(5000);
+    }
+  }
 }
 
 TrainArrival findTrainArrival(WiFiClient client){
@@ -285,6 +325,14 @@ int getClock(WiFiClient client){
                 int myminute = parseMinute(theDate);
                 int myDay = parseDay1(theDate);
                 setTime(myhour,myminute,0,1,1,2016);
+
+                Serial.println("time now:");
+                Serial.println(hour());
+                Serial.println(minute());
+                Serial.println(second());
+                Serial.println(day());
+                Serial.println(month());
+                Serial.println(year());
               }
             }
           }
@@ -309,6 +357,12 @@ int parseTrainTime(String dateTime){
     tmpHour = tmpHour - timeZone;
     setTime(tmpHour,myminute,0,1,1,2016);
   }
+  Serial.println("time train:");
+  Serial.println(hour());
+  Serial.println(minute());
+  Serial.println(day());
+  Serial.println(month());
+  Serial.println(year());
   return now();
 }
 
@@ -355,6 +409,7 @@ void printRollingText(String text) {
   while(--x > -size){
     matrix.fillScreen(0);
     matrix.setCursor(x, 0);
+    //matrix.setTextColor(matrix.Color(x*5, 255 -5*x, 0));
     matrix.print(text);
     matrix.show();
     delay(100);

@@ -3,3 +3,5 @@
 .pioenvs/structure.hash
 .gcc-flags.json
 .clang_complete
+.pioenvs
+.piolibdeps
