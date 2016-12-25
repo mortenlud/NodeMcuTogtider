@@ -64,7 +64,7 @@ void loop() {
 
   int timeToArrivalMin = timeToArrival(arivalTimeInSec,timeInSec);
 
-  if(trainArrival.trainDelay[2] == '0'){
+  if(timeToArrivalMin > 3){
     matrix.setTextColor(matrix.Color(0, 255, 0));
   }else{
     matrix.setTextColor(matrix.Color(255, 0, 0));
